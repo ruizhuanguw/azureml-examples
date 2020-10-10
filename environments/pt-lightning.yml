@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+dependencies:
+  - python=3.6
+  - pip
+  - pip:
+    - azureml-defaults
+    - torch
+    - torchvision
+    - pytorch-lightning
+    - cmake
+    - horovod
