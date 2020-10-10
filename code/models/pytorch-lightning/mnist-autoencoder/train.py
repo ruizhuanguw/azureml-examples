@@ -73,7 +73,6 @@ def cli_main():
     parser.add_argument('--hidden_dim', type=int, default=128)
     parser = pl.Trainer.add_argparse_args(parser)
     args = parser.parse_args()
-    print(args)
 
     # ------------
     # data
