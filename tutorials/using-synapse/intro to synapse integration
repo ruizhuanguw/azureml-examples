@@ -1,0 +1,731 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Copyright (c) Microsoft Corporation. All rights reserved. Licensed under the MIT License."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Azure Machine Learning and Synapse integration (Private preview)\n",
+    "### Tutorial: Unified experience of big data prep and taxi fare ML prediction\n",
+    "\n",
+    "In this tutorial, you use Apache Spark pools backed by Synapse to explore and transform NYC Green dataset (~1M rows per month, [details](https://azure.microsoft.com/en-us/services/open-datasets/catalog/nyc-taxi-limousine-commission-green-taxi-trip-records/) for the open dataset) and leverage automated machine learning in Azure Machine Learning to create a regression model to predict NYC taxi fare prices in one single notebook. \n",
+    "\n",
+    "In this notebook, you learn the following tasks: \n",
+    "* Link to Synapse workspace to Azure ML\n",
+    "* Attach Synapse Apache Spark pools to Azure ML\n",
+    "* Launch spark sessions and prepare big data with PySpark  \n",
+    "* Train an automated machine learning regression model on AML compute\n",
+    "* Register and deploy the best model \n",
+    "\n",
+    "\n",
+    "**Contents**:\n",
+    "* Prerequisites\n",
+    "* Setup\n",
+    "* Link to Synapse workspace and attach Spark pools\n",
+    "* Run machine learning flow from end to end, including data exploration and preparation, traning and model deployment.\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Prerequisites\n",
+    "1. **Get ready in Azure Machine Learning**: \n",
+    "    * Create Azure Machine Learing in Azure Portal by following the instructions [here](https://docs.microsoft.com/en-us/azure/machine-learning/how-to-manage-workspace). If you already have Azure ML workspace, skip this step.\n",
+    "    * Initiate Azure ML Compute instance (previously called Notebook VM) in order to run sample notebooks by following the [instructions](https://docs.microsoft.com/en-us/azure/machine-learning/concept-compute-instance). If you already have running compute instance, skip this step.\n",
+    "\n",
+    "\n",
+    "2. **Get ready in Azure Synapse**: \n",
+    "    * Create a Synapse workspace in Azure Portal by following the instruction [here](https://docs.microsoft.com/azure/synapse-analytics/quickstart-create-workspace). When using Azure Synapse, you only pay for the capabilities you opt in to use. During Synapse public preview, there will not be a cost for provisioning an Azure Synapse workspace. Detailed pricing information can be found in this [site](https://azure.microsoft.com/en-us/pricing/details/synapse-analytics/).\n",
+    "    * If you already have Synapse workspace, create Apache Spark pool using Azure Portal, web tools or Synapse Studio. Intructions can be found [ here](https://docs.microsoft.com/en-us/azure/synapse-analytics/quickstart-create-apache-spark-pool-portal). \n",
+    "  \n",
+    "\n",
+    "\n",
+    "Note: in private preview, managed system identity is used to submit pipeline/experiment run. However, user credentials are used for notebook execution (interactively launch Spark session in notebook). Please ensure to grant users permission in Synapse if you are trying out cell execution (sample notebook below): in Synapse Studio, go to Manage tab and then Access Control subtab to add user credentials.   \n",
+    "   "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Setup: packages installation\n",
+    "#### Step1: Install Azure ML packages used in this feature\n",
+    "\n",
+    "Note: please ignore the version error. In private preivew. you need to install azureml-core<0.1.10 . In public preview, the step will be removed."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "pip install -U \"azureml-core<0.1.10\" --index-url https://azuremlsdktestpypi.azureedge.net/SynapseInAml/ --extra-index-url https://pypi.python.org/simple"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!pip install -U azureml-synapse --extra-index-url=https://azuremlsdktestpypi.azureedge.net/SynapseInAml"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "For JupyterLab, run the additional installation:"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "!jupyter lab build --minimize=False"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Step2: Restart the kernel once you complete pip installaction."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Link to Synapse assets\n",
+    "#### Step1: Attach User Assigned Identity (resource id of UAI can be found in Azure Portal)\n",
+    "To link to Synapse workspace succussfully, grant User Assigned Identity synapse admin role in Synapse Studio "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import datetime  \n",
+    "from azureml.core import Workspace, Experiment, Dataset, Environment,Datastore, LinkedWorkspace\n",
+    "\n",
+    "# The Azure ML workspace information to be used when launching spark session \n",
+    "ws = Workspace.from_config()\n",
+    "ws\n",
+    "\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Step2: Register Synaspe worksapce in Azure ML"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "linked_workspace = LinkedWorkspace.register(\n",
+    "    workspace = ws,              \n",
+    "    name = '<Synapse workspace alias in Azure ML>',    \n",
+    "    linked_workspace_resource_id = '<Synapse workspace resource ID>', # Synapse workspace resource ID can be found in Synapse Studio\n",
+    "\n",
+    "\n",
+    "# Optional: use unregister() to delink synapse workspace: linked_workspace.unregister()\n",
+    "# Optional: use ws.linked_workspaces['synapse workspace alais'] to get linked workspace content "
+   ]
+  },
+ {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "####  View all the linked services\n",
+    "There is a MSI (system_assigned_identity_principal_id) created for each linked service. Make sure you grant spark admin role of the synapse workspace to MSI in synapse studio before you submit job. "
+   ]
+  },  
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "LinkedService.list(ws)"
+   ]
+  },
+  
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Step3: Attach Synapse Apache Spark pools as compute target in Azure ML (one-time set up)\n",
+    "Once attached, you can use Spark pools either in notebook or pipeline/experiment run "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from azureml.core.compute import SynapseCompute, ComputeTarget\n",
+    "\n",
+    "attach_config = SynapseCompute.attach_configuration(\n",
+    "        linked_workspace,             #Linked synapse workspace alias\n",
+    "        type=\"SynapseSpark\",          #Type of assets to attach. For private preview, only Apache Spark pools are enabled.\n",
+    "        pool_name=\"<Synapse Spark pool name>\")       #Name of Synapse spark pool \n",
+    "\n",
+    "synapse_compute =ComputeTarget.attach(\n",
+    "        workspace=ws,                \n",
+    "        name='<Synapse pool alias in Azure ML>',         #Alias of attached Synapse Apache Spark pools in Azure ML\n",
+    "        attach_configuration=attach_config)\n",
+    "\n",
+    "synapse_compute.wait_for_completion()\n",
+    "\n",
+    "# Optional: use ws.compute_targets['Spark pool alias'] to get Spark pool "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Data processing at scale on Spark pool\n",
+    "#### Step1: start Spark session "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Learn more about spark magic package in Azure ML: Use Spark magic to execute commands on spark pools. The reaminig of this notebook run on selected Azure ML compute instance."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# explanation on how to use synapse spark magic syntax\n",
+    "%synapse?"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Specify spark pool name and Azure ML workspace information to launch spark session. \n",
+    "# You can find AML workspace name, subscription ID and resource group name from ws defined at the beginning of this notebook\n",
+    "%synapse start -c SynapseSparkPoolAlias -s AzureMLworkspaceSubscriptionID -r AzureMLworkspaceResourceGroupName -w AzureMLworkspaceName"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "After session started, you can check the session's metadata."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%synapse meta"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Step2: data exploration analysis and preparation on Spark pools\n",
+    "The input data in this sample is from Azure open dataset NYC green taxi trip records. The green taxi trip records include fields capturing pick-up and drop-off dates/times, pick-up and drop-off locations, trip distances, itemized fares, rate types, payment types, and driver-reported passenger counts.Read [here](https://azure.microsoft.com/services/open-datasets/catalog/nyc-taxi-limousine-commission-green-taxi-trip-records/) for more information."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%synapse\n",
+    "\n",
+    "import numpy as np\n",
+    "import pyspark\n",
+    "import os\n",
+    "import urllib\n",
+    "import sys\n",
+    "from datetime import datetime\n",
+    "from datetime import datetime\n",
+    "from dateutil import parser\n",
+    "from pyspark.sql.functions import *\n",
+    "from pyspark.ml.classification import *\n",
+    "from pyspark.ml.evaluation import *\n",
+    "from pyspark.ml.feature import *\n",
+    "from pyspark.sql.types import StructType, StructField\n",
+    "from pyspark.sql.types import DoubleType, IntegerType, StringType\n",
+    "from azureml.core.run import Run\n",
+    "\n",
+    "# print runtime versions\n",
+    "print('****************')\n",
+    "print('Python version: {}'.format(sys.version))\n",
+    "print('Spark version: {}'.format(spark.version))\n",
+    "print('****************')\n",
+    "\n",
+    "# initialize logger\n",
+    "run = Run.get_context()\n",
+    "\n",
+    "# start Spark session\n",
+    "spark = pyspark.sql.SparkSession.builder.appName('NYCGreenTaxi')\\\n",
+    "    .config(\"spark.jars.packages\", \"io.delta:delta-core_2.12:0.7.0\") \\\n",
+    "    .config(\"spark.sql.extensions\", \"io.delta.sql.DeltaSparkSessionExtension\") \\\n",
+    "    .config(\"spark.sql.catalog.spark_catalog\", \"org.apache.spark.sql.delta.catalog.DeltaCatalog\") \\\n",
+    "    .getOrCreate()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%synapse\n",
+    "\n",
+    "# Retrieve data from Azure ML open dataset\n",
+    "from azureml.opendatasets import NycTlcGreen\n",
+    "\n",
+    "end_date = parser.parse('2018-06-01')\n",
+    "start_date = parser.parse('2018-05-01')\n",
+    "nyc_green = NycTlcGreen(start_date=start_date, end_date=end_date)\n",
+    "nyc_green_df = nyc_green.to_spark_dataframe()\n",
+    "\n",
+    "# Print schema of input data\n",
+    "print(\"Schema of the input data:\")\n",
+    "nyc_green_df.printSchema()\n",
+    "\n",
+    "# Print statistical summary for predicted Y value - total amount for trips\n",
+    "print(\"Statistics summary for Total Amount:\")\n",
+    "nyc_green_df.describe(\"totalAmount\").show()\n",
+    "\n",
+    "# View Spark job progress in the table below. You can also view status and logs in Spark UI from table blow."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%synapse\n",
+    "\n",
+    "# Drop columns that are not relavant to ML modeling\n",
+    "columns_to_drop = ['vendorID','pickupLongitude','pickupLatitude','dropoffLongitude','dropoffLatitude','lpepPickupDatetime','lpepDropoffDatetime','puLocationId','doLocationId','rateCodeID','storeAndFwdFlag','paymentType','fareAmount','ehailFee','extra','mtaTax','improvementSurcharge','tipAmount','tollsAmount','puYear','puMonth']\n",
+    "df = nyc_green_df.drop(*columns_to_drop)\n",
+    "\n",
+    "# Transform column tripType\n",
+    "df_t = df.withColumn('tripType', when(df.tripType==2,lit('0')).otherwise(df.tripType))\n",
+    "\n",
+    "# Create or replace temp view to prepare for pyspark sql\n",
+    "df_t.createOrReplaceTempView(\"df_temp\")\n",
+    "\n",
+    "# Run query by leveraging pyspark sql \n",
+    "sqlDF = spark.sql(\"\"\"\n",
+    "    SELECT * \n",
+    "    FROM df_temp \n",
+    "    WHERE  (tripDistance>=25 and tripDistance<50)\n",
+    "    AND (passengerCount>0 and totalAmount>0)\n",
+    "\"\"\")\n",
+    "\n",
+    "# Data exploration and transformation is completed. Print processed data sample.\n",
+    "print(\"Reading for machine learning\")\n",
+    "sqlDF.show(10)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%%synapse\n",
+    "# Output process data to storage accounts. Below sqlDF is writted as delta table to ADLS Gen2. \n",
+    "sqlDF.write.format(\"delta\").save(\"abfss://containername@storageaccountpath/foldername/\")\n",
+    "\n",
+    "#you can also use sqlDF.write.parquet(\"abfss://containername@storageaccountpath/foldername/\",mode='overwrite')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### step3: Stop Spark session\n",
+    "When current session reach the status timeout, dead or any failure, you must explicitly stop it before start new one."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%synapse stop"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Train model on Azure ML compute"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Retrieve processed data from ADLS gen2 storage (intermediate storage account for processed data)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Register ADLS Gen 2 as Azure ML datastore**: Skip this step if you already have registered storage accounts in Azure ML. In this tutorial, data output from spark session is stored in the registered ADLS Gen2 storage account.You can retrieve this data and track the lineage by leveraging AML dataset after spark session is ended."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Upgrade to latest AML SDK packages\n",
+    "pip install --upgrade azureml-sdk"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Attention: please restart kernal once installation completes**"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import os\n",
+    "\n",
+    "ws = Workspace.from_config()\n",
+    "adlsgen2_datastore_name = '<ADLS gen2 storage account alias>'  #set ADLS Gen2 storage account alias in AML\n",
+    "\n",
+    "subscription_id=os.getenv(\"ADL_SUBSCRIPTION\", \"<ADLS account subscription ID>\") # subscription id of ADLS account\n",
+    "resource_group=os.getenv(\"ADL_RESOURCE_GROUP\", \"<ADLS account resource group>\") # resource group of ADLS account\n",
+    "\n",
+    "account_name=os.getenv(\"ADLSGEN2_ACCOUNTNAME\", \"<ADLS account name>\") # ADLS Gen2 account name\n",
+    "tenant_id=os.getenv(\"ADLSGEN2_TENANT\", \"<tenant id of service principal>\") # tenant id of service principal\n",
+    "client_id=os.getenv(\"ADLSGEN2_CLIENTID\", \"<client id of service principal>\") # client id of service principal\n",
+    "client_secret=os.getenv(\"ADLSGEN2_CLIENT_SECRET\", \"<secret of service principal>\") # the secret of service principal\n",
+    "\n",
+    "adlsgen2_datastore = Datastore.register_azure_data_lake_gen2(\n",
+    "    workspace=ws,\n",
+    "    datastore_name=adlsgen2_datastore_name,\n",
+    "    account_name=account_name, # ADLS Gen2 account name\n",
+    "    filesystem='<filesystem name>', # ADLS Gen2 filesystem\n",
+    "    tenant_id=tenant_id, # tenant id of service principal\n",
+    "    client_id=client_id, # client id of service principal\n",
+    "    client_secret=client_secret) # the secret of service principal"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from azureml.core import Workspace, Datastore, Dataset\n",
+    "from azureml.core.experiment import Experiment\n",
+    "from azureml.train.automl import AutoMLConfig\n",
+    "\n",
+    "datastore_name = '<ADLS gen2 storage account alias>'\n",
+    "    \n",
+    "# retrieve data via AML datastore\n",
+    "datastore = Datastore.get(ws, datastore_name)\n",
+    "datastore_path = [(datastore, '/data/*.snappy.parquet')]\n",
+    "        \n",
+    "nyc_green = Dataset.Tabular.from_parquet_files(path=datastore_path)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "#Register as AML dataset and convert to pandas dataframe\n",
+    "nyc_green_df = nyc_green.register(workspace=ws, name='NYCTaxi_Green_Processed', description='This dataset has been processed and ready for training',create_new_version=True)\n",
+    "final_df = nyc_green_df.to_pandas_dataframe()\n",
+    "final_df.describe()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Split the data into train and test sets"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Split the dataset into train and test datasets\n",
+    "train_data, test_data = nyc_green_df.random_split(percentage=0.8, seed=223)\n",
+    "label = \"totalAmount\""
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Automatically train a model by using automated machine learning\n",
+    "In this example, autoML is used to identify the best model. You can also build your own ML model."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import logging\n",
+    "\n",
+    "automl_settings = {\n",
+    "     \"enable_early_stopping\": True, \n",
+    "    \"experiment_timeout_hours\" : 0.25,\n",
+    "    \"max_concurrent_iterations\": 4,\n",
+    "    \"max_cores_per_iteration\": -1,\n",
+    "    \"n_cross_validations\": 5,\n",
+    "    \"primary_metric\": 'spearman_correlation',\n",
+    "    \"verbosity\": logging.INFO\n",
+    "}\n",
+    "\n",
+    "\n",
+    "automl_config = AutoMLConfig(task='regression',\n",
+    "                             compute_target ='CIdemo',  \n",
+    "                             training_data = train_data,\n",
+    "                             label_column_name = label,\n",
+    "                             **automl_settings)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "experiment = Experiment(ws, \"taxi-experiment\")\n",
+    "remote_run = experiment.submit(automl_config, show_output=True)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Explore model results"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "from azureml.widgets import RunDetails\n",
+    "RunDetails(remote_run).show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "#### Retrieve the best model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "best_run, fitted_model = remote_run.get_output()\n",
+    "print(best_run)\n",
+    "print(fitted_model)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Test ML model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "test_data = test_data.to_pandas_dataframe()\n",
+    "y_test = test_data['totalAmount'].fillna(0)\n",
+    "test_data = test_data.drop('totalAmount', 1)\n",
+    "test_data = test_data.fillna(0)\n",
+    "\n",
+    "\n",
+    "train_data = train_data.to_pandas_dataframe()\n",
+    "y_train = train_data['totalAmount'].fillna(0)\n",
+    "train_data = train_data.drop('totalAmount', 1)\n",
+    "train_data = train_data.fillna(0)\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "y_pred_train = fitted_model.predict(train_data)\n",
+    "y_residual_train = y_train - y_pred_train\n",
+    "\n",
+    "y_pred_test = fitted_model.predict(test_data)\n",
+    "y_residual_test = y_test - y_pred_test"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%matplotlib inline\n",
+    "\n",
+    "import matplotlib.pyplot as plt\n",
+    "import numpy as np\n",
+    "\n",
+    "from sklearn.metrics import mean_squared_error, r2_score\n",
+    "\n",
+    "# Set up a multi-plot chart.\n",
+    "f, (a0, a1) = plt.subplots(1, 2, gridspec_kw = {'width_ratios':[1, 1], 'wspace':0, 'hspace': 0})\n",
+    "f.suptitle('Regression Residual Values', fontsize = 18)\n",
+    "f.set_figheight(6)\n",
+    "f.set_figwidth(16)\n",
+    "\n",
+    "# Plot residual values of training set.\n",
+    "a0.axis([0, 360, -100, 100])\n",
+    "a0.plot(y_residual_train, 'bo', alpha = 0.5)\n",
+    "a0.plot([-10,360],[0,0], 'r-', lw = 3)\n",
+    "a0.text(16,170,'RMSE = {0:.2f}'.format(np.sqrt(mean_squared_error(y_train, y_pred_train))), fontsize = 12)\n",
+    "a0.text(16,140,'R2 score = {0:.2f}'.format(r2_score(y_train, y_pred_train)),fontsize = 12)\n",
+    "a0.set_xlabel('Training samples', fontsize = 12)\n",
+    "a0.set_ylabel('Residual Values', fontsize = 12)\n",
+    "\n",
+    "# Plot residual values of test set.\n",
+    "a1.axis([0, 90, -100, 100])\n",
+    "a1.plot(y_residual_test, 'bo', alpha = 0.5)\n",
+    "a1.plot([-10,360],[0,0], 'r-', lw = 3)\n",
+    "a1.text(5,170,'RMSE = {0:.2f}'.format(np.sqrt(mean_squared_error(y_test, y_pred_test))), fontsize = 12)\n",
+    "a1.text(5,140,'R2 score = {0:.2f}'.format(r2_score(y_test, y_pred_test)),fontsize = 12)\n",
+    "a1.set_xlabel('Test samples', fontsize = 12)\n",
+    "a1.set_yticklabels([])\n",
+    "\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "%matplotlib inline\n",
+    "test_pred = plt.scatter(y_test, y_pred_test, color='')\n",
+    "test_test = plt.scatter(y_test, y_test, color='g')\n",
+    "plt.legend((test_pred, test_test), ('prediction', 'truth'), loc='upper left', fontsize=8)\n",
+    "plt.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "### Register best model"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "description = 'My AutoML Model'\n",
+    "\n",
+    "model = best_run.register_model(description = description)\n",
+    "\n",
+    "print(best_run.model_id)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": []
+  }
+ ],
+ "metadata": {
+  "kernel_info": {
+   "name": "python3-azureml"
+  },
+  "kernelspec": {
+   "display_name": "Python 3.6 - AzureML",
+   "language": "python",
+   "name": "python3-azureml"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.6.9"
+  },
+  "nteract": {
+   "version": "nteract-front-end@1.0.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
