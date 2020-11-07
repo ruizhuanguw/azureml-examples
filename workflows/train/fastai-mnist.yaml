@@ -5,5 +5,6 @@ command: python train.py
 environment: 
   name: fastai-mnist-example
   conda: ../../environments/fastai.yml
-compute_target: cpu-cluster
+compute:
+  target: cpu-cluster
 
