@@ -1,0 +1,9 @@
+name: fastai_mnist_example
+code: 
+  directory: ../../code/train/fastai/mnist-resnet18
+command: python train.py
+environment: 
+  name: fastai-mnist-example
+  conda: ../../environments/fastai.yml
+compute_target: cpu-cluster
+
