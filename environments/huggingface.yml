@@ -1,0 +1,17 @@
+name: train-huggingface-model-with-pytorch
+channels:
+  - defaults
+  - pytorch
+  - anaconda
+  - conda-forge
+dependencies:
+  - python=3.6
+  - pytorch==1.4.0
+  - pip
+  - pip:
+    - mlflow
+    - matplotlib
+    - horovod==0.19.4
+    - transformers
+    - azureml-mlflow
+    - azureml-dataprep
