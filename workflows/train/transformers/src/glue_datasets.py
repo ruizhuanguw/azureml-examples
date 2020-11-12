@@ -41,6 +41,7 @@ task_columns = {
 # mnli-mm is a special name used by huggingface
 actual_task = lambda task: "mnli" if task == "mnli-mm" else task
 
+
 def num_labels_from_task(task: str) -> int:
     """Return the number of labels for the GLUE task."""
     if task.startswith("mnli"):
@@ -51,10 +52,12 @@ def num_labels_from_task(task: str) -> int:
         # all other glue tasks have 2 class labels
         return 2
 
+
 def load_metric_from_task(task: str) -> Metric:
     """Load the metric for the corresponding GLUE task."""
     metric = load_metric("glue", actual_task(task))
     return metric
+
 
 def get_metric_name_from_task(task: str) -> str:
     """Get the name of the metric for the corresponding GLUE task.
@@ -69,6 +72,7 @@ def get_metric_name_from_task(task: str) -> str:
         return "matthews_correlation"
     else:
         return "accuracy"
+
 
 def construct_tokenizer_function(
     tokenizer: PreTrainedTokenizerBase, task: str
@@ -122,7 +126,7 @@ def load_encoded_glue_dataset(
     tokenizer_func = construct_tokenizer_function(tokenizer=tokenizer, task=task)
     raw_dataset = load_raw_glue_dataset(task)
     encoded_dataset = raw_dataset.map(tokenizer_func, batched=True)
-    
+
     validation_key = (
         "validation_mismatched"
         if task == "mnli-mm"
@@ -130,7 +134,7 @@ def load_encoded_glue_dataset(
         if task == "mnli"
         else "validation"
     )
-    
+
     return encoded_dataset["train"], encoded_dataset[validation_key]
 
 
@@ -161,4 +165,3 @@ if __name__ == "__main__":
     os.makedirs(args.output_dir, exist_ok=True)
     tokenized_dataset.save_to_disk(args.output_dir)
     logger.info("Done!")
-

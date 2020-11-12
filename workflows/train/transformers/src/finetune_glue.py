@@ -2,6 +2,7 @@ import argparse
 import numpy as np
 import time
 from typing import Any, List, Union, Dict, Callable
+
 # from dataclasses import dataclass, field
 from datasets import Metric
 from transformers import (
@@ -22,6 +23,7 @@ from glue_datasets import (
 from transformers.integrations import AzureMLCallback
 from azureml.core import Run
 
+
 def construct_compute_metrics_function(task: str) -> Callable[[EvalPrediction], Dict]:
     metric = load_metric_from_task(task)
 
@@ -37,9 +39,10 @@ def construct_compute_metrics_function(task: str) -> Callable[[EvalPrediction], 
         def compute_metrics_function(eval_pred: EvalPrediction) -> Dict:
             predictions, labels = eval_pred
             predictions = predictions[:, 0]
-            return metric.compute(predictions=predictions, references=labels) 
+            return metric.compute(predictions=predictions, references=labels)
 
     return compute_metrics_function
+
 
 if __name__ == "__main__":
 
@@ -76,7 +79,7 @@ if __name__ == "__main__":
 
     print("Training...")
 
-    run = Run.get_context() # get handle on Azure ML run
+    run = Run.get_context()  # get handle on Azure ML run
     start = time.time()
     trainer.train()
     run.log("time/epoch", (time.time() - start) / 60 / training_args.num_train_epochs)

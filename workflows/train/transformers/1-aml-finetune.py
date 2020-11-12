@@ -54,36 +54,36 @@ def transformers_environment(use_gpu=True):
         finetuning task.
     """
 
-    pip_requirements_path = 'requirements.txt'
-    print(f'Create Azure ML Environment from {pip_requirements_path}')
-    
+    pip_requirements_path = "requirements.txt"
+    print(f"Create Azure ML Environment from {pip_requirements_path}")
+
     if use_gpu:
 
-        env_name = 'transformers-gpu'
+        env_name = "transformers-gpu"
         env = Environment.from_pip_requirements(
-            name=env_name,
-            file_path=pip_requirements_path,
+            name=env_name, file_path=pip_requirements_path,
         )
-        env.docker.base_image = 'mcr.microsoft.com/azureml/intelmpi2018.3-cuda10.0-cudnn7-ubuntu16.04'
+        env.docker.base_image = (
+            "mcr.microsoft.com/azureml/intelmpi2018.3-cuda10.0-cudnn7-ubuntu16.04"
+        )
 
     else:
 
-        env_name = 'transformers-cpu'
+        env_name = "transformers-cpu"
         env = Environment.from_pip_requirements(
-            name=env_name,
-            file_path=pip_requirements_path,
+            name=env_name, file_path=pip_requirements_path,
         )
 
     return env
 
+
 def submit_glue_finetuning_to_aml(
-        glue_task: str,
-        model_checkpoint: str,
-        environment: Environment,
-        target: ComputeTarget,
-        experiment: Experiment,
-        
-    ) -> Run:
+    glue_task: str,
+    model_checkpoint: str,
+    environment: Environment,
+    target: ComputeTarget,
+    experiment: Experiment,
+) -> Run:
     """Submit GLUE finetuning task to Azure ML.
 
     This method prepares the configuration (compute target and environment) together
@@ -107,16 +107,23 @@ def submit_glue_finetuning_to_aml(
         source_directory="src",
         script="finetune_glue.py",
         arguments=[
-            "--output_dir", "outputs",
-            "--task", glue_task,
-            "--model_checkpoint", model_checkpoint,
-            
+            "--output_dir",
+            "outputs",
+            "--task",
+            glue_task,
+            "--model_checkpoint",
+            model_checkpoint,
             # training args
-            "--num_train_epochs", 5,
-            "--learning_rate", 2e-5,
-            "--per_device_train_batch_size", 16,
-            "--per_device_eval_batch_size", 16,
-            "--disable_tqdm", True,
+            "--num_train_epochs",
+            5,
+            "--learning_rate",
+            2e-5,
+            "--per_device_train_batch_size",
+            16,
+            "--per_device_eval_batch_size",
+            16,
+            "--disable_tqdm",
+            True,
         ],
         compute_target=target,
         environment=environment,
@@ -139,11 +146,19 @@ def submit_glue_finetuning_to_aml(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--glue_task", default="cola", help="Name of GLUE task used for finetuning.")
-    parser.add_argument("--model_checkpoint", default="distilbert-base-uncased", help="Pretrained transformers model name.")
+    parser.add_argument(
+        "--glue_task", default="cola", help="Name of GLUE task used for finetuning."
+    )
+    parser.add_argument(
+        "--model_checkpoint",
+        default="distilbert-base-uncased",
+        help="Pretrained transformers model name.",
+    )
     args = parser.parse_args()
-    
-    print(f'Finetuning {args.glue_task} with model {args.model_checkpoint} on Azure ML...')
+
+    print(
+        f"Finetuning {args.glue_task} with model {args.model_checkpoint} on Azure ML..."
+    )
 
     ws: Workspace = Workspace.from_config()
 
