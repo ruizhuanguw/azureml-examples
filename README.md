@@ -93,6 +93,9 @@ path|compute|environment|description
 [workflows/train/tensorflow/mnist-distributed-horovod.py](workflows/train/tensorflow/mnist-distributed-horovod.py)|AML - GPU|conda|train tensorflow CNN model on mnist data distributed via horovod
 [workflows/train/tensorflow/mnist-distributed.py](workflows/train/tensorflow/mnist-distributed.py)|AML - GPU|conda|train tensorflow CNN model on mnist data distributed via tensorflow
 [workflows/train/tensorflow/mnist.py](workflows/train/tensorflow/mnist.py)|AML - GPU|conda|train tensorflow NN model on mnist data
+[workflows/train/transformers/1-aml-finetune.py](workflows/train/transformers/1-aml-finetune.py)|AML - GPU|pip|"""Submit GLUE finetuning with Huggingface transformers library on Azure ML.
+[workflows/train/transformers/2-aml-comparison-of-sku.py](workflows/train/transformers/2-aml-comparison-of-sku.py)|AML - CPU|pip|"""Experiment comparing training performance of GLUE finetuning task with differing hardware.
+[workflows/train/transformers/3-aml-hyperdrive.py](workflows/train/transformers/3-aml-hyperdrive.py)|AML - GPU|pip|"""Automatic hyperparameter optimization with Azure ML HyperDrive library.
 [workflows/train/xgboost/iris.py](workflows/train/xgboost/iris.py)|AML - CPU|pip|train xgboost model on iris data
 
 **Deploy**
