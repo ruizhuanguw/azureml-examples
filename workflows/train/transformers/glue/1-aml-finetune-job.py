@@ -1,5 +1,4 @@
 # description: Submit GLUE finetuning with Huggingface transformers library on Azure ML
-
 """Submit GLUE finetuning with Huggingface transformers library on Azure ML.
 
 This script prepares the `src/finetune_glue.py` script to run in Azure ML.

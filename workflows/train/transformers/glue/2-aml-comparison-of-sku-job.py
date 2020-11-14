@@ -1,5 +1,4 @@
 # description: Experiment comparing training performance of GLUE finetuning task with differing hardware.
-
 """Experiment comparing training performance of GLUE finetuning task with differing hardware.
 
 This script prepares the `src/finetune_glue.py` script to run in Azure ML using
