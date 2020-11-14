@@ -1,4 +1,5 @@
 import argparse
+import logging
 import numpy as np
 import time
 from typing import Any, List, Union, Dict, Callable
@@ -22,6 +23,10 @@ from glue_datasets import (
 # Azure ML imports - could replace this with e.g. wandb or mlflow
 from transformers.integrations import AzureMLCallback
 from azureml.core import Run
+
+logger = logging.getLogger(__name__)
+
+from azureml_adapter import set_environment_variables_for_nccl_backend, get_local_rank
 
 
 def construct_compute_metrics_function(task: str) -> Callable[[EvalPrediction], Dict]:
@@ -50,6 +55,28 @@ if __name__ == "__main__":
     parser.add_argument("--task", default="cola", help="name of GLUE task to compute")
     parser.add_argument("--model_checkpoint", default="distilbert-base-uncased")
     training_args, args = parser.parse_args_into_dataclasses()
+
+    # set distributed learning env var and local_rank.
+    # the first time training_args.device is called, it will init the process group
+    set_environment_variables_for_nccl_backend()
+    local_rank = get_local_rank()
+    training_args.local_rank = local_rank
+
+    # Setup logging
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        level=logging.INFO if training_args.local_rank in [-1, 0] else logging.WARN,
+    )
+    logger.warning(
+        "Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bit training: %s",
+        training_args.local_rank,
+        training_args.device,
+        training_args.n_gpu,
+        bool(training_args.local_rank != -1),
+        training_args.fp16,
+    )
+    logger.info("Training/evaluation parameters %s", training_args)
 
     task: str = args.task.lower()
 
