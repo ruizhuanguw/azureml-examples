@@ -19,10 +19,13 @@ jobs:
         python-version: "3.8"
     - name: pip install
       run: pip install -r requirements.txt
+<<<<<<< HEAD
     - name: check code format
       run: black --check .
     - name: check notebook format
       run: black-nb --clear-output --check .
+=======
+>>>>>>> origin/main
     - name: azure login
       uses: azure/login@v1
       with:
@@ -32,6 +35,7 @@ jobs:
     - name: attach to workspace
       run: az ml folder attach -w default -g azureml-examples
     - name: run 1.train-single-node.ipynb
+<<<<<<< HEAD
       run: papermill tutorials/using-pytorch-lightning/1.train-single-node.ipynb - -k python
     - name: run 2.log-with-tensorboard.ipynb
       run: papermill tutorials/using-pytorch-lightning/2.log-with-tensorboard.ipynb - -k python
@@ -39,3 +43,16 @@ jobs:
       run: papermill tutorials/using-pytorch-lightning/3.log-with-mlflow.ipynb - -k python
     - name: run 4.train-multi-node-ddp.ipynb
       run: papermill tutorials/using-pytorch-lightning/4.train-multi-node-ddp.ipynb - -k python
+=======
+      run: papermill 1.train-single-node.ipynb - -k python
+      working-directory: tutorials/using-pytorch-lightning
+    - name: run 2.log-with-tensorboard.ipynb
+      run: papermill 2.log-with-tensorboard.ipynb - -k python
+      working-directory: tutorials/using-pytorch-lightning
+    - name: run 3.log-with-mlflow.ipynb
+      run: papermill 3.log-with-mlflow.ipynb - -k python
+      working-directory: tutorials/using-pytorch-lightning
+    - name: run 4.train-multi-node-ddp.ipynb
+      run: papermill 4.train-multi-node-ddp.ipynb - -k python
+      working-directory: tutorials/using-pytorch-lightning
+>>>>>>> origin/main

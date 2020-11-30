@@ -4,6 +4,7 @@ import json
 import glob
 import argparse
 
+<<<<<<< HEAD
 # setup argparse
 parser = argparse.ArgumentParser()
 args = parser.parse_args()
@@ -12,6 +13,24 @@ args = parser.parse_args()
 with open("data/markdowns/prefix.md", "r") as f:
     prefix = f.read()
 with open("data/markdowns/suffix.md", "r") as f:
+=======
+# issue #146
+if "posix" not in os.name:
+    print(
+        "windows is not supported, see issue #146 (https://github.com/Azure/azureml-examples/issues/146)"
+    )
+    exit(1)
+
+# setup argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("--check-readme", type=bool, default=False)
+args = parser.parse_args()
+
+# constants, variables, parameters, etc.
+with open("prefix.md", "r") as f:
+    prefix = f.read()
+with open("suffix.md", "r") as f:
+>>>>>>> origin/main
     suffix = f.read()
 
 tutorial_table = """
@@ -21,7 +40,11 @@ path|status|notebooks|description
 """
 
 notebook_table = """
+<<<<<<< HEAD
 **Jupyter Notebooks**
+=======
+**Notebooks**
+>>>>>>> origin/main
 path|description
 -|-
 """
@@ -41,7 +64,11 @@ path|compute|description
 ws = "default"
 rg = "azureml-examples"
 mn = "${{matrix.notebook}}"
+<<<<<<< HEAD
 me = "${{matrix.example}}"
+=======
+mw = "${{matrix.workflow}}"
+>>>>>>> origin/main
 cr = "${{secrets.AZ_AE_CREDS}}"
 
 kernelspec = {"display_name": "Python 3.8", "language": "python", "name": "python3.8"}
@@ -78,11 +105,21 @@ for tutorial in tutorials:
     tutorial_table += f"[{name}]({tutorial})|{status}|{nbs}|{desc}\n"
 
 # process notebooks/*
+<<<<<<< HEAD
 notebooks = sorted(glob.glob("notebooks/**.ipynb"))
 
 # create `run-examples` workflow yaml file
 workflow = f"""name: run-notebooks
 on:
+=======
+notebooks = sorted(glob.glob("notebooks/*.ipynb"))
+
+# create `run-workflows` workflow yaml file
+workflow = f"""name: run-notebooks
+on:
+  schedule:
+      - cron: "0 0/2 * * *"
+>>>>>>> origin/main
   push: 
     branches:
       - main
@@ -93,8 +130,11 @@ on:
       - main
     paths:
       - "notebooks/**"
+<<<<<<< HEAD
   schedule:
       - cron: "0 0/2 * * *"
+=======
+>>>>>>> origin/main
 jobs:
   build:
     runs-on: ubuntu-latest 
@@ -110,10 +150,13 @@ jobs:
         python-version: "3.8"
     - name: pip install
       run: pip install -r requirements.txt
+<<<<<<< HEAD
     - name: check code format
       run: black --check .
     - name: check notebook format
       run: black-nb --clear-output --check .
+=======
+>>>>>>> origin/main
     - name: azure login
       uses: azure/login@v1
       with:
@@ -154,31 +197,53 @@ for nb in notebooks:
     notebook_table += f"[{nb}]({nb})|{desc}\n"
 
 # process code/azureml/*
+<<<<<<< HEAD
 examples = sorted(glob.glob("examples/**/*.py"))
 
 # create `run-examples` workflow yaml file
 workflow = f"""name: run-examples
 on:
+=======
+workflows = sorted(glob.glob("workflows/**/*/job.py", recursive=True))
+
+# create `run-workflows` workflow yaml file
+workflow = f"""name: run-workflows
+on:
+  schedule:
+      - cron: "0 0/2 * * *"
+>>>>>>> origin/main
   push: 
     branches:
       - main
     paths:
+<<<<<<< HEAD
       - "examples/**"
       - "code/**"
+=======
+      - "workflows/**"
+>>>>>>> origin/main
   pull_request:
     branches:
       - main
     paths:
+<<<<<<< HEAD
       - "examples/**"
       - "code/**"
   schedule:
       - cron: "0 0/2 * * *"
+=======
+      - "workflows/**"
+>>>>>>> origin/main
 jobs:
   build:
     runs-on: ubuntu-latest 
     strategy:
       matrix:
+<<<<<<< HEAD
         example: {examples}
+=======
+        workflow: {workflows}
+>>>>>>> origin/main
     steps:
     - name: check out repo
       uses: actions/checkout@v2
@@ -188,10 +253,13 @@ jobs:
         python-version: "3.8"
     - name: pip install
       run: pip install -r requirements.txt
+<<<<<<< HEAD
     - name: check code format
       run: black --check .
     - name: check notebook format
       run: black-nb --clear-output --check .
+=======
+>>>>>>> origin/main
     - name: azure login
       uses: azure/login@v1
       with:
@@ -200,6 +268,7 @@ jobs:
       run: az extension add -s https://azurecliext.blob.core.windows.net/release/azure_cli_ml-1.15.0-py3-none-any.whl -y
     - name: attach to workspace
       run: az ml folder attach -w {ws} -g {rg}
+<<<<<<< HEAD
     - name: run example
       run: python {me}
 """
@@ -214,6 +283,22 @@ for ex in examples:
 
     # read in example
     with open(ex, "r") as f:
+=======
+    - name: run workflow 
+      run: python {mw}
+"""
+
+# write `run-workflows` workflow yaml file
+print("writing workflow file...")
+with open(f".github/workflows/run-workflows.yml", "w") as f:
+    f.write(workflow)
+
+# create example tables
+for wf in workflows:
+
+    # read in example
+    with open(wf, "r") as f:
+>>>>>>> origin/main
         data = f.read()
 
         # read in the description
@@ -223,7 +308,11 @@ for ex in examples:
             desc = "*no description*"
 
         # build tables
+<<<<<<< HEAD
         if "train" in ex:
+=======
+        if "train" in wf:
+>>>>>>> origin/main
             # parse for compute target
             if "cpu-cluster" in data:
                 compute = "AML - CPU"
@@ -238,6 +327,7 @@ for ex in examples:
                 environment = "conda"
             elif "env.docker.base_dockerfile" in data:
                 environment = "docker"
+<<<<<<< HEAD
             elif "mlproject" in ex:
                 environment = "mlproject"
             else:
@@ -265,6 +355,28 @@ with open("README.md", "w") as f:
 
 # glob all notebooks
 notebooks = sorted(glob.glob("**/**/*.ipynb"))
+=======
+            elif "mlproject" in wf:
+                environment = "mlproject"
+            else:
+                environment = "unknown"
+            train_table += f"[{wf}]({wf})|{compute}|{environment}|{desc}\n"
+        elif "deploy" in wf:
+            if "aci-cpu" in wf:
+                compute = "ACI - CPU"
+            elif "aks-cpu" in wf:
+                compute = "AKS - CPU"
+            elif "aks-gpu" in wf:
+                compute = "AKS - GPU"
+            elif "local" in wf:
+                compute = "local"
+            else:
+                compute = "unknown"
+            deploy_table += f"[{wf}]({wf})|{compute}|{desc}\n"
+
+# glob all notebooks
+notebooks = sorted(glob.glob("**/**/*.ipynb", recursive=True))
+>>>>>>> origin/main
 
 # process all notebooks and rewrite
 for nb in notebooks:
@@ -280,9 +392,35 @@ for nb in notebooks:
     with open(nb, "w") as f:
         json.dump(data, f, indent=1)
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> origin/main
 # run code formatter on .py files
 os.system("black .")
 
 # run code formatter on .ipynb files
 os.system("black-nb --clear-output .")
+<<<<<<< HEAD
+=======
+
+# read in README.md for comparison
+with open("README.md", "r") as f:
+    before = f.read()
+
+# write README.md file
+print("writing README.md...")
+with open("README.md", "w") as f:
+    f.write(
+        prefix + tutorial_table + notebook_table + train_table + deploy_table + suffix
+    )
+
+# read in README.md for comparison
+with open("README.md", "r") as f:
+    after = f.read()
+
+# check if README.md file matches before and after
+if args.check_readme and before != after:
+    print("README.md file did not match...")
+    exit(2)
+>>>>>>> origin/main

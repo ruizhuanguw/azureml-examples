@@ -18,6 +18,7 @@ jobs:
       with:
         python-version: "3.8"
     - name: install snappy
+<<<<<<< HEAD
       run: sudo apt-get install libsnappy-dev
     - name: pip install
       run: pip install -r requirements.txt
@@ -25,6 +26,11 @@ jobs:
       run: black --check .
     - name: check notebook format
       run: black-nb --clear-output --check .
+=======
+      run: sudo apt-get install libsnappy-dev liblz4-tool
+    - name: pip install
+      run: pip install -r requirements.txt
+>>>>>>> origin/main
     - name: azure login
       uses: azure/login@v1
       with:
@@ -34,6 +40,11 @@ jobs:
     - name: attach to workspace
       run: az ml folder attach -w default -g azureml-examples
     - name: run 1.intro-to-dask.ipynb
+<<<<<<< HEAD
       run: papermill tutorials/using-dask/1.intro-to-dask.ipynb - -k python
     - name: run 2.eds-at-scale.ipynb
       run: papermill tutorials/using-dask/2.eds-at-scale.ipynb - -k python
+=======
+      run: papermill 1.intro-to-dask.ipynb - -k python
+      working-directory: tutorials/using-dask
+>>>>>>> origin/main
