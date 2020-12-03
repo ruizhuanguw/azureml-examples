@@ -32,7 +32,7 @@ def download_input(url):
 def get_data_url():
     BIG_FILE_URL = 'https://raw.githubusercontent.com/dscape/spell/master/test/resources/big.txt'
     parser = argparse.ArgumentParser()
-    parser.add_argument('--text_url', required=False)
+    parser.add_argument('--data_url', required=False)
     args = parser.parse_args()
     return args.text_url if args.text_url else  BIG_FILE_URL
         
