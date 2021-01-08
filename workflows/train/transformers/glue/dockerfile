@@ -1,0 +1,22 @@
+FROM mcr.microsoft.com/azureml/onnxruntime-training:0.1-rc3.1-openmpi4.0-cuda10.2-cudnn8.0-nccl2.7
+WORKDIR /workspace
+RUN apt-get update && \
+    apt-get install -y build-essential && \
+    apt-get install -y git
+
+RUN pip install azureml azureml-core
+RUN pip install torch
+
+# get transformers with ORT addons
+RUN git clone https://github.com/microsoft/onnxruntime-training-examples.git
+WORKDIR /workspace/onnxruntime-training-examples/huggingface-gpt2
+RUN git clone https://github.com/huggingface/transformers.git
+WORKDIR /workspace/onnxruntime-training-examples/huggingface-gpt2/transformers/
+RUN git checkout 9a0a8c1c6f4f2f0c80ff07d36713a3ada785eec5
+RUN git apply ../ort_addon/src_changes.patch
+RUN cp -r ../ort_addon/ort_supplement/* ./
+RUN python3 -m pip install --no-cache-dir .
+    # && \
+    # python3 -m pip install --no-cache-dir -r examples/requirements.txt
+RUN rm -rf transformers/
+CMD ["/bin/bash"]

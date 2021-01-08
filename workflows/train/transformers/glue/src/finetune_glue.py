@@ -57,18 +57,22 @@ if __name__ == "__main__":
     parser.add_argument("--model_checkpoint", default="distilbert-base-uncased")
     training_args, args = parser.parse_args_into_dataclasses()
 
-    # Setup CUDA, GPU & distributed training
-    set_environment_variables_for_nccl_backend()
-    local_rank = get_local_rank()
-    if local_rank == -1:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        args.n_gpu = torch.cuda.device_count()
-    else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
-        torch.distributed.init_process_group(backend="nccl")
-        # args.n_gpu = 1
-    args.device = device
+    for k, v in os.environ.items():
+        print(k, v)
+
+    # # Setup CUDA, GPU & distributed training
+    # local_rank = get_local_rank()
+    # print(f"Local rank: {local_rank}")
+    # if local_rank == -1:
+    #     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #     args.n_gpu = torch.cuda.device_count()
+    # else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
+    #     set_environment_variables_for_nccl_backend()
+    #     torch.cuda.set_device(local_rank)
+    #     device = torch.device("cuda", local_rank)
+    #     torch.distributed.init_process_group(backend="nccl")
+    #     # args.n_gpu = 1
+    # args.device = device
 
     task: str = args.task.lower()
 
@@ -101,8 +105,8 @@ if __name__ == "__main__":
     run = Run.get_context()  # get handle on Azure ML run
     start = time.time()
     trainer.train()
-    run.log(f"time/epoch(rank{local_rank})", (time.time() - start) / 60 / training_args.num_train_epochs)
+    # run.log(f"time/epoch(rank{local_rank})", (time.time() - start) / 60 / training_args.num_train_epochs)
+    run.log(f"time/epoch", (time.time() - start) / 60 / training_args.num_train_epochs)
 
-    if local_rank in [-1, 0]:
-        print("Evaluation...")
-        trainer.evaluate()
+    print("Evaluation...")
+    trainer.evaluate()

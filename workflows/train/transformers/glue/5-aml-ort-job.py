@@ -41,42 +41,21 @@ from azureml.core import ScriptRunConfig  # prepare code, an run configuration
 from azureml.core import Run  # used for type hints
 
 
-def transformers_environment(use_gpu=True):
-    """Prepares Azure ML Environment with transformers library.
+def ort_transformers_environment():
+    """Prepares Azure ML Environment with ORT + transformers library.
 
-    Note: We install transformers library from source. See requirements file for
-    full list of dependencies.
+    This dockerfile is prepared using the ORT transformers example repo:
 
-    Args:
-        use_gpu (bool): If true, Azure ML will use gpu-enabled docker image
-            as base.
+    https://github.com/microsoft/onnxruntime-training-examples/tree/master/huggingface-gpt2
+
 
     Return:
-        Azure ML Environment with huggingface libraries needed to perform GLUE
-        finetuning task.
+        Azure ML Environment with ort and huggingface libraries needed to perform
+        GLUE finetuning task.
     """
-
-    pip_requirements_path = str(Path(__file__).parent.joinpath("requirements.txt"))
-    print(f"Create Azure ML Environment from {pip_requirements_path}")
-
-    if use_gpu:
-
-        env_name = "transformers-gpu"
-        env = Environment.from_pip_requirements(
-            name=env_name, file_path=pip_requirements_path,
-        )
-        env.docker.base_image = (
-            # "mcr.microsoft.com/azureml/intelmpi2018.3-cuda10.0-cudnn7-ubuntu16.04"
-            "mcr.microsoft.com/azureml/base-gpu:openmpi3.1.2-cuda10.1-cudnn7-ubuntu18.04"
-        )
-
-    else:
-
-        env_name = "transformers-cpu"
-        env = Environment.from_pip_requirements(
-            name=env_name, file_path=pip_requirements_path,
-        )
-
+    env = Environment('transformers-ort')
+    env.docker.base_image = None
+    env.docker.base_dockerfile = "./dockerfile"
     return env
 
 
@@ -167,9 +146,9 @@ if __name__ == "__main__":
 
     target: ComputeTarget = ws.compute_targets["gpu-K80-2"]
 
-    env: Environment = transformers_environment(use_gpu=True)
+    env: Environment = ort_transformers_environment()
 
-    exp: Experiment = Experiment(ws, "transformers-glue-finetuning")
+    exp: Experiment = Experiment(ws, "transformers-glue-finetuning-ort")
 
     run: Run = submit_glue_finetuning_to_aml(
         glue_task=args.glue_task,
