@@ -2,15 +2,20 @@
 
 ## Create synapse resources
 
-Follow up the documents to create Synapse workspace
+Follow up the documents to create Synapse workspace and resource-setup.sh is available for you to create the resources.
+
 - Create from [Portal](https://docs.microsoft.com/en-us/azure/synapse-analytics/quickstart-create-workspace)
 - Create from [Cli](https://docs.microsoft.com/en-us/azure/synapse-analytics/quickstart-create-workspace-cli)
 
-
 Follow up the documents to create Synapse spark pool
+
 - Create from [Portal](https://docs.microsoft.com/en-us/azure/synapse-analytics/quickstart-create-apache-spark-pool-portal)
+- Create from [Cli](https://docs.microsoft.com/en-us/cli/azure/ext/synapse/synapse/spark/pool?view=azure-cli-latest)
 
 ## Link Synapse Workspace
+
+Make sure you are the owner of synapse workspace so that you can link synapse workspace into AML.
+You can run resource-setup.py to link the synapse workspace and attach compute
 
 ```python
 from azureml.core import Workspace
@@ -31,6 +36,7 @@ linked_service = LinkedService.register(
 ```
 
 ## Attach synapse spark pool as AzureML compute
+
 ```python
 
 from azureml.core.compute import SynapseCompute, ComputeTarget
@@ -49,14 +55,17 @@ synapse_compute=ComputeTarget.attach(
 
 synapse_compute.wait_for_completion()
 ```
+
 ## Set up permission
+
 Grant Spark admin role to system assigned identity of the linked service so that you can submit experiment run or pipeline run from AML workspace to synapse spark pool.
 
 You can get the system assigned identity information by running
+
 ```python
 print(linked_service.system_assigned_identity_principal_id)
 ```
-Launch synapse studio of the synapse workspace and add spark admin role of this Msi
 
-Data Access of the spark job
+- Launch synapse studio of the synapse workspace and grant linked service MSI "Synapse Apache Spark administrator" role.
 
+- In azure portal grant linked service MSI "Storage Blob Data Contributor" role of the primary adlsgen2 account of synapse workspace to use the library management feature.
