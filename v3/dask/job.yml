@@ -1,0 +1,12 @@
+code: 
+  directory: src
+command: python run.py
+environment: 
+  name: required
+  conda_file: environment.yml
+distribution:
+  type: mpi
+compute:
+  target: azureml:cpu-cluster
+  node_count: 2
+experiment_name: v3-dask
