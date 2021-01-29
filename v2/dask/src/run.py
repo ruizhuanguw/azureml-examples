@@ -13,7 +13,7 @@ from adlfs import AzureBlobFileSystem
 def main(args):
     # distributed setup
     print("initializing...")
-    dask_mpi.initialize(nthreads=args.cpus_per_node)
+    dask_mpi.initialize(nthreads=args.cpus_per_node, nanny=True)
     client = Client()
     print(client)
 
