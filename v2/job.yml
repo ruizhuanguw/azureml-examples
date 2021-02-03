@@ -1,0 +1,10 @@
+code: 
+  directory: src
+command: julia --project=. test.jl 
+environment: azureml:julia:2
+distribution:
+  type: mpi
+compute:
+  target: azureml:cpu-cluster
+  instance_count: 10
+experiment_name: v2-julia-mpi
