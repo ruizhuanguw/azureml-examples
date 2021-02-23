@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://azuremlsdk2.blob.core.windows.net/latest/commandJob.schema.json
+inputs:
+  cifar:
+    data: azureml:cifar-10-batches:1
+    mode: mount
+command: python train-with-cloud-data-and-logging.py --data-path {inputs.cifar} --learning-rate 0.003 --momentum 0.92 --epochs 2
+environment:
+  conda_file: file:environment.yml
+compute:
+  target: azureml:cpu-cluster
+code:
+  directory: src

@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://azuremlsdk2.blob.core.windows.net/latest/commandJob.schema.json
+command: python train.py
+environment:
+  conda_file: file:environment.yml
+compute:
+  target: azureml:cpu-cluster
+code:
+  directory: src
