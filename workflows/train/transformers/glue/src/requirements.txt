@@ -1,0 +1,6 @@
+git+git://github.com/huggingface/transformers.git@master#egg=transformers
+datasets
+azureml-sdk
+torch
+scipy
+sklearn

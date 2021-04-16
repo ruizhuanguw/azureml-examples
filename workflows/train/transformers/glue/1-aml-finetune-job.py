@@ -40,46 +40,47 @@ from azureml.core import Experiment  # connect/create experiments
 from azureml.core import Environment  # manage e.g. Python environments
 from azureml.core import ScriptRunConfig  # prepare code, an run configuration
 from azureml.core import Run  # used for type hints
+from azureml.core.conda_dependencies import CondaDependencies
 
 
-def transformers_environment(use_gpu=True):
-    """Prepares Azure ML Environment with transformers library.
+# def transformers_environment(use_gpu=True):
+#     """Prepares Azure ML Environment with transformers library.
 
-    Note: We install transformers library from source. See requirements file for
-    full list of dependencies.
+#     Note: We install transformers library from source. See requirements file for
+#     full list of dependencies.
 
-    Args:
-        use_gpu (bool): If true, Azure ML will use gpu-enabled docker image
-            as base.
+#     Args:
+#         use_gpu (bool): If true, Azure ML will use gpu-enabled docker image
+#             as base.
 
-    Return:
-        Azure ML Environment with huggingface libraries needed to perform GLUE
-        finetuning task.
-    """
+#     Return:
+#         Azure ML Environment with huggingface libraries needed to perform GLUE
+#         finetuning task.
+#     """
 
-    pip_requirements_path = str(Path(__file__).parent.joinpath("requirements.txt"))
-    print(f"Create Azure ML Environment from {pip_requirements_path}")
+#     pip_requirements_path = str(Path(__file__).parent.joinpath("requirements.txt"))
+#     print(f"Create Azure ML Environment from {pip_requirements_path}")
 
-    if use_gpu:
+#     if use_gpu:
 
-        env_name = "transformers-gpu"
-        env = Environment.from_pip_requirements(
-            name=env_name,
-            file_path=pip_requirements_path,
-        )
-        env.docker.base_image = (
-            "mcr.microsoft.com/azureml/intelmpi2018.3-cuda10.0-cudnn7-ubuntu16.04"
-        )
+#         env_name = "transformers-gpu"
+#         env = Environment.from_pip_requirements(
+#             name=env_name,
+#             file_path=pip_requirements_path,
+#         )
+#         env.docker.base_image = (
+#             "mcr.microsoft.com/azureml/intelmpi2018.3-cuda10.0-cudnn7-ubuntu16.04"
+#         )
 
-    else:
+#     else:
 
-        env_name = "transformers-cpu"
-        env = Environment.from_pip_requirements(
-            name=env_name,
-            file_path=pip_requirements_path,
-        )
+#         env_name = "transformers-cpu"
+#         env = Environment.from_pip_requirements(
+#             name=env_name,
+#             file_path=pip_requirements_path,
+#         )
 
-    return env
+#     return env
 
 
 def submit_glue_finetuning_to_aml(
@@ -108,10 +109,8 @@ def submit_glue_finetuning_to_aml(
         The Azure ML Run instance associated to this finetuning submission.
     """
     # set up script run configuration
-    config = ScriptRunConfig(
-        source_directory=str(Path(__file__).parent.joinpath("src")),
-        script="finetune_glue.py",
-        arguments=[
+    command = 'python3 -m pip install -r requirements.txt && python3 finetune_glue.py'.split()
+    arguments = [
             "--output_dir",
             "outputs",
             "--task",
@@ -120,16 +119,42 @@ def submit_glue_finetuning_to_aml(
             model_checkpoint,
             # training args
             "--num_train_epochs",
-            5,
+            "5",
             "--learning_rate",
-            2e-5,
+            "2e-5",
             "--per_device_train_batch_size",
-            16,
+            "16",
             "--per_device_eval_batch_size",
-            16,
+            "16",
             "--disable_tqdm",
-            True,
-        ],
+            "True",
+            "--logging_strategy",
+            "epoch"
+        ]
+    config = ScriptRunConfig(
+        source_directory=str(Path(__file__).parent.joinpath("src")),
+        # script="finetune_glue.py",
+        # arguments=[
+        #     "--output_dir",
+        #     "outputs",
+        #     "--task",
+        #     glue_task,
+        #     "--model_checkpoint",
+        #     model_checkpoint,
+        #     # training args
+        #     "--num_train_epochs",
+        #     5,
+        #     "--learning_rate",
+        #     2e-5,
+        #     "--per_device_train_batch_size",
+        #     16,
+        #     "--per_device_eval_batch_size",
+        #     16,
+        #     "--disable_tqdm",
+        #     True,
+        # ],
+        command=command+arguments,
+        # command='python3 -m pip install -r requirements.txt',
         compute_target=target,
         environment=environment,
     )
@@ -167,16 +192,23 @@ if __name__ == "__main__":
 
     ws: Workspace = Workspace.from_config()
 
-    target: ComputeTarget = ws.compute_targets["gpu-K80-2"]
+    target: ComputeTarget = ws.compute_targets["gpu-8x-a1001"]
 
-    env: Environment = transformers_environment(use_gpu=True)
+    # env: Environment = transformers_environment(use_gpu=True)
+    pytorch_env = Environment(name = 'pytorch-1.8-gpu')
+    pytorch_env.docker.base_image = '70270bc100e441ac82699f657672cd53.azurecr.io/a100-pytorch:latest'
+    pytorch_env.python.user_managed_dependencies=True
+    pytorch_env.python.interpreter_path = 'python3'
+
+    # conda_dep = CondaDependencies()
+    # conda_dep.add_pip_package("azureml-sdk")
 
     exp: Experiment = Experiment(ws, "transformers-glue-finetuning")
 
     run: Run = submit_glue_finetuning_to_aml(
         glue_task=args.glue_task,
         model_checkpoint=args.model_checkpoint,  # try: "bert-base-uncased"
-        environment=env,
+        environment=pytorch_env,
         target=target,
         experiment=exp,
     )

@@ -5,6 +5,7 @@ from typing import Any, List, Union, Dict, Callable
 
 # from dataclasses import dataclass, field
 from datasets import Metric
+import transformers
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -51,9 +52,18 @@ if __name__ == "__main__":
     parser.add_argument("--model_checkpoint", default="distilbert-base-uncased")
     training_args, args = parser.parse_args_into_dataclasses()
 
+    transformers.logging.set_verbosity_debug()
+
     task: str = args.task.lower()
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_checkpoint, use_fast=True)
+    if tokenizer.pad_token is None:	
+        # note: adding new pad token will change the vocab size	
+        # to keep it simple just reuse an existing special token	
+        # https://github.com/huggingface/transformers/issues/6263	
+        tokenizer.pad_token = tokenizer.eos_token	
+        model.config.pad_token_id = model.config.eos_token_id	
+
 
     encoded_dataset_train, encoded_dataset_eval = load_encoded_glue_dataset(
         task=task, tokenizer=tokenizer
@@ -70,7 +80,7 @@ if __name__ == "__main__":
     trainer = Trainer(
         model,
         training_args,
-        callbacks=[AzureMLCallback()],
+        # callbacks=[AzureMLCallback()],
         train_dataset=encoded_dataset_train,
         eval_dataset=encoded_dataset_eval,
         tokenizer=tokenizer,
@@ -83,6 +93,7 @@ if __name__ == "__main__":
     start = time.time()
     trainer.train()
     run.log("time/epoch", (time.time() - start) / 60 / training_args.num_train_epochs)
+    run.log("NumberGPUs",  trainer.args._n_gpu)
 
     print("Evaluation...")
 
